@@ -82,9 +82,8 @@ public class Fw extends BukkitCommand {
         switch (cmd)
         {
             case "add":
-                ConfigLocation cl = new ConfigLocation();
-                cl.pos = sender.getLocation().toVector();
-                cl.orientation = sender.getLocation().getDirection();
+                Location pos = sender.getLocation();
+                ConfigLocation cl = new ConfigLocation(pos.getWorld().getName(), pos.toVector(), pos.getDirection());
                 Main.instance.configData.gameSpawns.add(cl);
                 sender.sendMessage(ChatColor.BLUE + "Le spawn a bien été ajouté");
                 Main.instance.config.save();
@@ -185,8 +184,8 @@ public class Fw extends BukkitCommand {
                     return;
                 }
                 ConfigPlatform cp = new ConfigPlatform();
-                cp.firstPoint = firstpos.toVector();
-                cp.lastPoint = lastpos.toVector();
+                cp.firstPoint = new ConfigLocation(firstpos.getWorld().getName(), firstpos.toVector(), null);
+                cp.lastPoint = new ConfigLocation(lastpos.getWorld().getName(), lastpos.toVector(), null);
                 Main.instance.configData.platforms.add(cp);
                 sender.sendMessage(ChatColor.BLUE + "La plateforme a bien été ajoutée");
                 Main.instance.config.save();
@@ -196,12 +195,12 @@ public class Fw extends BukkitCommand {
                 int i = 0;
                 for(ConfigPlatform p : Main.instance.configData.platforms)
                 {
-                    int x = (int)p.firstPoint.getX();
-                    int y = (int)p.firstPoint.getY();
-                    int z = (int)p.firstPoint.getZ();
-                    int x2 = (int)p.lastPoint.getX();
-                    int y2 = (int)p.lastPoint.getY();
-                    int z2 = (int)p.lastPoint.getZ();
+                    int x = (int)p.firstPoint.pos.getX();
+                    int y = (int)p.firstPoint.pos.getY();
+                    int z = (int)p.firstPoint.pos.getZ();
+                    int x2 = (int)p.lastPoint.pos.getX();
+                    int y2 = (int)p.lastPoint.pos.getY();
+                    int z2 = (int)p.lastPoint.pos.getZ();
                     String first = "" + ChatColor.RED + x + "/" + y + "/" + z;
                     String last = "" + ChatColor.RED + x2 + "/" + y2 + "/" + z2;
                     sender.sendMessage(ChatColor.AQUA + "#" + (++i) + ChatColor.WHITE + " - " + first + ChatColor.WHITE + " - " + last);

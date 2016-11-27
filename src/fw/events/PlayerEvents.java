@@ -1,7 +1,9 @@
 package fw.events;
 
+import api.config.ConfigLocation;
 import api.interfaces.QueueListener;
 import fw.Main;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -20,9 +22,12 @@ public class PlayerEvents implements Listener, QueueListener {
     public Location firstPoint;
     public Location lastPoint;
 
+
+
     public PlayerEvents(Main main) {
         this.main = main;
-        this.main.api.getQueueManager().registerListner(this);
+        if(this.main.api.getQueueManager() != null)
+            this.main.api.getQueueManager().registerListner(this);
     }
 
     @EventHandler
@@ -49,6 +54,15 @@ public class PlayerEvents implements Listener, QueueListener {
 
     @Override
     public void onGameStart() {
-
+        int count = 0;
+        for(Player p : Bukkit.getOnlinePlayers())
+        {
+            if(count >= Main.instance.configData.gameSpawns.size())
+                count = 0;
+            ConfigLocation cp = Main.instance.configData.gameSpawns.get(count);
+            if(cp != null)
+                p.teleport(cp.getLocation());
+            count++;
+        }
     }
 }
