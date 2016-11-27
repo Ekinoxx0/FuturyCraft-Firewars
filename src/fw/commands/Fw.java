@@ -25,7 +25,7 @@ public class Fw extends BukkitCommand {
     public Fw() {
         super("fw");
         this.description = "Main command of Firewars";
-        this.usageMessage = "/fw [spawn,select,platform]";
+        this.usageMessage = "/fw [spawn,select,platform,deathlevel]";
         this.setPermission("futurycraft.fw");
         this.setAliases(new ArrayList<>());
     }
@@ -60,6 +60,9 @@ public class Fw extends BukkitCommand {
             case "platform":
                 runPlatform(sender, arguments);
                 break;
+            case "deathlevel":
+                runDeathLevel(sender, arguments);
+                break;
             default:
                 sender.sendMessage(ChatColor.RED + this.getUsage());
         }
@@ -71,7 +74,7 @@ public class Fw extends BukkitCommand {
     {
         if(args.length < 1)
         {
-            sender.sendMessage(ChatColor.RED + "/fw spawn [add,rem,list]");
+            sender.sendMessage(ChatColor.RED + "/fw spawn [add,rem,list,setSpectator]");
             return;
         }
 
@@ -86,6 +89,13 @@ public class Fw extends BukkitCommand {
                 ConfigLocation cl = new ConfigLocation(pos.getWorld().getName(), pos.toVector(), pos.getDirection());
                 Main.instance.configData.gameSpawns.add(cl);
                 sender.sendMessage(ChatColor.BLUE + "Le spawn a bien été ajouté");
+                Main.instance.config.save();
+                break;
+            case "setSpectator":
+                Location loc = sender.getLocation().add(0,1,0);
+                ConfigLocation cls = new ConfigLocation(loc.getWorld().getName(), loc.toVector(), loc.getDirection());
+                Main.instance.configData.spectatorLoc = cls;
+                sender.sendMessage(ChatColor.BLUE + "Le spawn spectateur a bien été defini");
                 Main.instance.config.save();
                 break;
             case "list":
@@ -246,6 +256,19 @@ public class Fw extends BukkitCommand {
             default:
                 sender.sendMessage(ChatColor.RED + "/fw platform [add,rem,list]");
         }
+    }
+
+    void runDeathLevel(Player sender, String[] args)
+    {
+        if(args.length != 0)
+        {
+            sender.sendMessage(ChatColor.RED + "/fw deathlevel");
+            return;
+        }
+
+        Main.instance.configData.deathLevel = sender.getLocation().getBlockY() + 1;
+        sender.sendMessage(ChatColor.AQUA + "le niveau de mort a bien été defini");
+        Main.instance.config.save();
     }
 
 }
