@@ -183,6 +183,13 @@ public class Fw extends BukkitCommand {
                     sender.sendMessage(ChatColor.RED + "Les points 1 et 2 doivent etre définis");
                     return;
                 }
+
+                if(!firstpos.getWorld().equals(lastpos.getWorld()))
+                {
+                    sender.sendMessage(ChatColor.RED + "Les points 1 et 2 doivent etre dans le meme monde");
+                    return;
+                }
+
                 ConfigPlatform cp = new ConfigPlatform();
                 cp.firstPoint = new ConfigLocation(firstpos.getWorld().getName(), firstpos.toVector(), null);
                 cp.lastPoint = new ConfigLocation(lastpos.getWorld().getName(), lastpos.toVector(), null);
