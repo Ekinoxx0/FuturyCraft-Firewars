@@ -24,9 +24,9 @@ public class Main extends JavaPlugin {
     {
         instance = this;
         api = new API(this);
-        api.setMaxPlayers(5);
+        api.setMaxPlayers(16);
         api.setMinPlayers(1);
-        api.setCountdown(5000L);
+        api.setCountdown(1000L * 5);
         config = new Config(this.getName());
         config.setConfigObject(ConfigData.class);
         commandsManager = new CommandsManager(this);
