@@ -20,9 +20,10 @@ import java.util.ArrayList;
 /**
  * Created by loucass003 on 26/11/16.
  */
-public class Fw extends BukkitCommand {
-
-    public Fw() {
+public class Fw extends BukkitCommand
+{
+    public Fw()
+    {
         super("fw");
         this.description = "Main command of Firewars";
         this.usageMessage = "/fw [spawn,select,platform,deathlevel]";
@@ -31,8 +32,8 @@ public class Fw extends BukkitCommand {
     }
 
     @Override
-    public boolean execute(CommandSender cs, String s, String[] args) {
-
+    public boolean execute(CommandSender cs, String s, String[] args)
+    {
         if(!(cs instanceof Player))
         {
             cs.sendMessage(ChatColor.RED + "The command sender must be a player");
@@ -41,7 +42,8 @@ public class Fw extends BukkitCommand {
 
         Player sender = (Player)cs;
 
-        if(args.length < 1) {
+        if(args.length < 1)
+        {
             sender.sendMessage(ChatColor.RED + this.getUsage());
             return false;
         }
@@ -149,12 +151,13 @@ public class Fw extends BukkitCommand {
             sender.sendMessage(ChatColor.RED + "/fw select");
             return;
         }
-        Inventory i = sender.getInventory();
 
+        Inventory i = sender.getInventory();
         boolean hasTool = false;
         for(ItemStack is : i.getContents())
         {
-            if (is != null && is.getType() == Material.DIAMOND_SPADE && is.getItemMeta().getDisplayName().equals("Fw Tool")) {
+            if (is != null && is.getType() == Material.DIAMOND_SPADE && is.getItemMeta().getDisplayName().equals("Fw Tool"))
+            {
                 hasTool = true;
                 break;
             }
@@ -183,6 +186,7 @@ public class Fw extends BukkitCommand {
         String[] arguments = new String[args.length-1];
         for(int i = 1; i < args.length; i++)
             arguments[i - 1] = args[i];
+
         switch (cmd)
         {
             case "add":

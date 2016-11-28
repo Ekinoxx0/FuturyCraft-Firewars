@@ -5,12 +5,14 @@ import api.utils.Config;
 import fw.commands.CommandsManager;
 import fw.config.ConfigData;
 import fw.events.PlayerEvents;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
  * Created by loucass003 on 25/11/16.
  */
-public class Main extends JavaPlugin {
+public class Main extends JavaPlugin
+{
 
     public static Main instance;
 
@@ -25,7 +27,7 @@ public class Main extends JavaPlugin {
         instance = this;
         api = new API(this);
         api.setMaxPlayers(16);
-        api.setMinPlayers(1);
+        api.setMinPlayers(2);
         api.setCountdown(1000L * 15);
         config = new Config(this.getName());
         config.setConfigObject(ConfigData.class);
@@ -43,6 +45,10 @@ public class Main extends JavaPlugin {
         api.init();
         this.getServer().getPluginManager().registerEvents(playerEvents = new PlayerEvents(this), this);
         commandsManager.registerCommands();
+        for(Player p : getServer().getOnlinePlayers())
+            p.teleport(api.getGlobalConfig().getSpawn().getLocation());
+        if(configData.minimumConfigIsSet())
+            api.getQueueManager().checkPlayers();
     }
 
     @Override

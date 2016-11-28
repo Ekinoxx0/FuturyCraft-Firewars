@@ -7,8 +7,8 @@ import org.bukkit.craftbukkit.v1_8_R1.CraftServer;
 /**
  * Created by loucass003 on 26/11/16.
  */
-public class CommandsManager {
-
+public class CommandsManager
+{
     public Main main;
 
     public CommandsManager(Main main)
