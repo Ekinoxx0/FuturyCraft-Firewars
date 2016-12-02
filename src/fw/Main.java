@@ -25,11 +25,11 @@ public class Main extends JavaPlugin
     public Main()
     {
         instance = this;
-        api = new API(this);
+        api = API.getInstance();
         api.setMaxPlayers(16);
         api.setMinPlayers(2);
         api.setCountdown(1000L * 15);
-        config = new Config(this.getName());
+        config = new Config(this.getName(), this);
         config.setConfigObject(ConfigData.class);
         commandsManager = new CommandsManager(this);
     }
@@ -42,12 +42,11 @@ public class Main extends JavaPlugin
         configData = config.get(ConfigData.class);
         if(!configData.minimumConfigIsSet())
             api.useQueueManager(false);
-        api.init();
         this.getServer().getPluginManager().registerEvents(playerEvents = new PlayerEvents(this), this);
         commandsManager.registerCommands();
         for(Player p : getServer().getOnlinePlayers())
             p.teleport(api.getGlobalConfig().getSpawn().getLocation());
-        if(configData.minimumConfigIsSet())
+        if(configData.minimumConfigIsSet() && api.getQueueManager() != null)
             api.getQueueManager().checkPlayers();
     }
 
@@ -55,7 +54,6 @@ public class Main extends JavaPlugin
     public void onDisable()
     {
         getServer().getLogger().info("Arret du plugin !");
-        api.unload();
         config.save();
     }
 }
