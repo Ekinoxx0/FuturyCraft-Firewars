@@ -55,5 +55,6 @@ public class Main extends JavaPlugin
     {
         getServer().getLogger().info("Arret du plugin !");
         config.save();
+        playerEvents.clear();
     }
 }
