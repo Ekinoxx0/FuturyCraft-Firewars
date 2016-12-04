@@ -1,34 +1,40 @@
 package fw.events;
 
+import api.API;
 import api.config.ConfigLocation;
+import api.gui.ScoreboardSign;
 import api.gui.Title;
 import api.interfaces.QueueListener;
+import api.utils.Region;
 import fw.Main;
-import net.minecraft.server.v1_8_R1.EnumParticle;
-import net.minecraft.server.v1_8_R1.PacketPlayOutWorldParticles;
+import fw.config.ConfigPlatform;
+import net.minecraft.server.v1_9_R1.EnumParticle;
+import net.minecraft.server.v1_9_R1.PacketPlayOutWorldParticles;
 import org.bukkit.*;
 import org.bukkit.block.Block;
-import org.bukkit.craftbukkit.v1_8_R1.entity.CraftPlayer;
+import org.bukkit.craftbukkit.v1_9_R1.entity.CraftPlayer;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.*;
-import org.bukkit.event.player.PlayerDropItemEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.*;
+import org.bukkit.event.weather.WeatherChangeEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.util.Vector;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Created by loucass003 on 26/11/16.
  */
-public class PlayerEvents implements Listener, QueueListener {
+public class PlayerEvents implements Listener, QueueListener
+{
 
     public Main main;
     public Location firstPoint;
@@ -36,6 +42,9 @@ public class PlayerEvents implements Listener, QueueListener {
 
     public List<Projectile> fireballs = new ArrayList<>();
     public Map<Player, Long> cooldown = new HashMap<>();
+    public Map<Player, ScoreboardSign> scoreboards = new HashMap<>();
+
+    public List<Player> winners = new ArrayList<>();
 
     public boolean gamePlaying = false;
     public boolean started = false;
@@ -43,24 +52,37 @@ public class PlayerEvents implements Listener, QueueListener {
     public int startTimerId = -1;
     public int startTimer = 10;
 
-    public PlayerEvents(Main main) {
+    public Long currentTime = 0L;
+    public Long platformTime = 60L * 1000L;
+    public int platformOffset = 0;
+    public boolean lastPlatform = false;
+
+
+    public PlayerEvents(Main main)
+    {
         this.main = main;
-        if(this.main.api.getQueueManager() != null) {
+
+        if(this.main.api.getQueueManager() != null)
+        {
             this.main.api.getQueueManager().registerListner(this);
-            Bukkit.getScheduler().scheduleSyncRepeatingTask(Main.instance, () -> {
-                for (Projectile f : fireballs) {
+            Bukkit.getScheduler().scheduleSyncRepeatingTask(Main.instance, () ->
+            {
+                for (Projectile f : fireballs)
+                {
                     Location loc = f.getLocation();
-                    for (Player p : Bukkit.getOnlinePlayers()) {
+                    for (Player p : Bukkit.getOnlinePlayers())
+                    {
                         ((CraftPlayer) p).getHandle().playerConnection.sendPacket(new PacketPlayOutWorldParticles(
                                 EnumParticle.FLAME, false, (float) loc.getX(), (float) loc.getY(), (float) loc.getZ(),
                                 0, 0, 0, 0.05F, 15));
                         ((CraftPlayer) p).getHandle().playerConnection.sendPacket(new PacketPlayOutWorldParticles(
                                 EnumParticle.SMOKE_LARGE, false, (float) loc.getX(), (float) loc.getY(), (float) loc.getZ(),
                                 0, 0, 0, 0.01F, 10));
-
                     }
                 }
-                for (Player p : Bukkit.getOnlinePlayers()) {
+
+                for (Player p : Bukkit.getOnlinePlayers())
+                {
                     if (!cooldown.containsKey(p))
                         continue;
                     Long t = cooldown.get(p) - System.currentTimeMillis();
@@ -69,12 +91,46 @@ public class PlayerEvents implements Listener, QueueListener {
                         seconds = -1;
                     p.setLevel(seconds + 1);
                 }
+
+                if(gamePlaying)
+                {
+                    Bukkit.getOnlinePlayers().forEach(this::updateScoreboard);
+                    if(currentTime - System.currentTimeMillis() <= 0)
+                    {
+                        currentTime = System.currentTimeMillis() + platformTime;
+                        if(platformOffset <= Main.instance.configData.platforms.size() - 1)
+                        {
+                            ConfigPlatform cp = Main.instance.configData.platforms.get(platformOffset);
+                            if(cp == null)
+                                return;
+                            Region r = cp.getRegion();
+                            for(Block b : r.getBlocks())
+                                b.setType(Material.AIR);
+                            platformOffset++;
+                        }
+                        else
+                        {
+                            if(lastPlatform)
+                            {
+                                currentTime = 0L;
+                                winners.addAll(Bukkit.getOnlinePlayers().stream().filter(p -> p.getGameMode() == GameMode.SURVIVAL && !API.isSpectator(p)).collect(Collectors.toList()));
+                                doWin();
+                                return;
+                            }
+                            currentTime = System.currentTimeMillis() + 10 * 60 * 1000L;
+                            lastPlatform = true;
+                        }
+                    }
+                }
+                else
+                    currentTime = 0L;
+
             }, 0, 1);
         }
     }
 
     @EventHandler
-    public void onPlayerInteractEntity(PlayerInteractEvent e)
+    public void onPlayerInteract(PlayerInteractEvent e)
     {
         Player p = e.getPlayer();
         ItemStack i = e.getItem();
@@ -82,10 +138,13 @@ public class PlayerEvents implements Listener, QueueListener {
             return;
         if(i.getType() == Material.DIAMOND_SPADE && i.getItemMeta().getDisplayName().equals("Fw Tool"))
         {
-            if(e.getAction() == Action.LEFT_CLICK_BLOCK) {
+            if(e.getAction() == Action.LEFT_CLICK_BLOCK)
+            {
                 firstPoint = e.getClickedBlock().getLocation();
                 p.sendMessage("Point #1 set !");
-            } else if(e.getAction() == Action.RIGHT_CLICK_BLOCK) {
+            }
+            else if(e.getAction() == Action.RIGHT_CLICK_BLOCK)
+            {
                 lastPoint = e.getClickedBlock().getLocation();
                 p.sendMessage("Point #2 set !");
             }
@@ -94,39 +153,53 @@ public class PlayerEvents implements Listener, QueueListener {
                 e.setCancelled(true);
         }
 
-        if(i.getType() == Material.FIREBALL && gamePlaying)
+        if(i.getType() == Material.FIREBALL)
         {
             if(e.getAction() == Action.RIGHT_CLICK_BLOCK)
                 e.setCancelled(true);
-            Long t = 0L;
-            if(!cooldown.containsKey(p))
-                cooldown.put(p, System.currentTimeMillis() + 3000L);
-            else
-                t = cooldown.get(p);
-            if(t - System.currentTimeMillis() <= 0) {
-                Fireball b = p.launchProjectile(Fireball.class);
-                b.setIsIncendiary(false);
-                b.setYield(1.2F);
-                p.playSound(p.getLocation(), Sound.GHAST_FIREBALL, 0.5F, 0.5F);
-                cooldown.put(p, System.currentTimeMillis() + 3000L);
+            if (gamePlaying && !API.isSpectator(p) && p.getGameMode() == GameMode.SURVIVAL)
+            {
+                Long t = 0L;
+                if (!cooldown.containsKey(p))
+                    cooldown.put(p, System.currentTimeMillis() + 3000L);
+                else
+                    t = cooldown.get(p);
+                if (t - System.currentTimeMillis() <= 0) {
+                    Fireball b = p.launchProjectile(Fireball.class);
+                    b.setIsIncendiary(false);
+                    b.setYield(1.2F);
+                    p.playSound(p.getLocation(), Sound.ENTITY_ENDERDRAGON_FIREBALL_EXPLODE, 0.5F, 0.5F);
+                    cooldown.put(p, System.currentTimeMillis() + 3000L);
+                }
             }
         }
     }
 
+    public ConfigLocation getRandomPos(List<ConfigLocation> used)
+    {
+        int r = new Random().nextInt(Main.instance.configData.gameSpawns.size() - 1);
+        ConfigLocation cp = Main.instance.configData.gameSpawns.get(r);
+        if(used.size() >= Main.instance.configData.gameSpawns.size())
+            used.clear();
+        if(cp != null && !used.contains(cp))
+        {
+            used.add(cp);
+            return cp;
+        }
+        else
+            return getRandomPos(used);
+    }
+
     @Override
-    public void onGameStart() {
-
-        int count = 0;
-
+    public void onGameStart()
+    {
+        List<ConfigLocation> usedSpawn = new ArrayList<>();
+        Bukkit.getWorlds().get(0).setTime(0);
         for(Player p : Bukkit.getOnlinePlayers())
         {
-            if(count >= Main.instance.configData.gameSpawns.size())
-                count = 0;
-            ConfigLocation cp = Main.instance.configData.gameSpawns.get(count);
-            if(cp != null)
-                p.teleport(cp.getLocation());
-            count++;
-
+            ConfigLocation cp = getRandomPos(usedSpawn);
+            p.teleport(cp.getLocation());
+            usedSpawn.add(cp);
             Inventory i = p.getInventory();
             i.clear();
 
@@ -144,31 +217,57 @@ public class PlayerEvents implements Listener, QueueListener {
             p.setGameMode(GameMode.SURVIVAL);
         }
         started = true;
-        this.startTimerId = Bukkit.getScheduler().scheduleSyncRepeatingTask(Main.instance, () -> {
 
-                Title title = new Title();
-                title.setFadeIn(2);
-                title.setFadeOut(2);
-                title.setText("Debut dans " + startTimer + "...");
-                title.setColor(ChatColor.GOLD);
-                if (startTimer < 10 && startTimer > 1) {
-                    title.setFadeIn(0);
-                }
-                if (startTimer == 0)
-                    title.setText("Go !");
+        this.startTimerId = Bukkit.getScheduler().scheduleSyncRepeatingTask(Main.instance, () ->
+        {
+            Title title = new Title();
+            title.setFadeIn(2);
+            title.setFadeOut(2);
+            title.setText("Debut dans " + startTimer + "...");
+            title.setColor(ChatColor.GOLD);
+            if (startTimer < 10 && startTimer > 1)
+                title.setFadeIn(0);
+            if (startTimer == 0)
+                title.setText("Go !");
 
-                for (Player pl : Bukkit.getOnlinePlayers())
-                    title.sendTitle(pl);
+            Bukkit.getOnlinePlayers().forEach(title::sendTitle);
 
-                if (startTimer <= 0) {
-                    startTimer = 0;
-                    gamePlaying = true;
-                    Bukkit.getScheduler().cancelTask(startTimerId);
-                }
-                else
-                    startTimer--;
+            if (startTimer <= 0)
+            {
+                startTimer = 0;
+                gamePlaying = true;
+                Bukkit.getScheduler().cancelTask(startTimerId);
+                currentTime = System.currentTimeMillis() + platformTime;
+            }
+            else
+                startTimer--;
 
         }, 0, 20);
+    }
+
+    private void updateScoreboard(Player p)
+    {
+        ScoreboardSign s;
+        if(scoreboards.containsKey(p))
+            s = scoreboards.get(p);
+        else
+        {
+            s = new ScoreboardSign(p, Main.instance.getName());
+            s.create();
+            scoreboards.put(p, s);
+        }
+
+        Long t = currentTime - System.currentTimeMillis();
+        int seconds = (int) (t / 1000) % 60 ;
+        int minutes = (int) ((t / (1000*60)) % 60);
+        String time = String.format("%02d:%02d", minutes, seconds);
+        s.setLine(1, time);
+    }
+
+    public void clear()
+    {
+        scoreboards.values().forEach(ScoreboardSign::destroy);
+        scoreboards.clear();
     }
 
     @EventHandler
@@ -187,7 +286,8 @@ public class PlayerEvents implements Listener, QueueListener {
     @EventHandler
     public void onPlayerDropItem(PlayerDropItemEvent e)
     {
-        e.setCancelled(true);
+        if(e.getPlayer().getGameMode() != GameMode.CREATIVE)
+            e.setCancelled(true);
     }
 
     @EventHandler
@@ -195,8 +295,10 @@ public class PlayerEvents implements Listener, QueueListener {
     {
         if(e.getEntityType() != EntityType.FIREBALL)
             e.setCancelled(true);
-        else {
-            for (Block b : e.blockList()) {
+        else
+        {
+            for (Block b : e.blockList())
+            {
                 b.setType(Material.AIR);
                 e.setYield(1.2F);
             }
@@ -206,27 +308,125 @@ public class PlayerEvents implements Listener, QueueListener {
     @EventHandler
     public void onPlayerMoveEvent(PlayerMoveEvent e)
     {
-        if(started && !gamePlaying && e.getPlayer().getGameMode() == GameMode.SURVIVAL)
-                e.setCancelled(true);
+        Player p = e.getPlayer();
+        if(started && p.getGameMode() == GameMode.SURVIVAL && !API.isSpectator(p))
+        {
+            if(!gamePlaying)
+            {
+                boolean teleport = e.getFrom().toVector().getBlockX() != e.getTo().toVector().getBlockX();
+                if (e.getFrom().toVector().getBlockZ() != e.getTo().toVector().getBlockZ() || teleport)
+                        p.teleport(e.getFrom());
+            }
+            else
+            {
+                if(p.getLocation().getY() <= main.configData.deathLevel)
+                {
+                    int c = 0;
+                    for(Player pl : Bukkit.getOnlinePlayers())
+                        if(pl.getGameMode() == GameMode.SURVIVAL && !API.isSpectator(pl))
+                            c++;
+                    if(c == 1)
+                    {
+                        winners.add(p);
+                        doWin();
+                    }
+                    else
+                    {
+                        API.setSpectator(p);
+                        p.getInventory().clear();
+                        p.teleport(main.configData.spectatorLoc.getLocation());
+                    }
+                }
+            }
+        }
+    }
+
+    public void doWin()
+    {
+
+    }
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent e)
+    {
+        e.getPlayer().getInventory().clear();
+        if(started && gamePlaying)
+        {
+            Player p = e.getPlayer();
+            API.setSpectator(p);
+            p.getInventory().clear();
+            p.teleport(main.configData.spectatorLoc.getLocation());
+        }
+        else
+            e.getPlayer().setGameMode(GameMode.SURVIVAL);
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent e)
+    {
+        if(scoreboards.containsKey(e.getPlayer()))
+            scoreboards.remove(e.getPlayer());
+        int c = 0;
+        for(Player pl : Bukkit.getOnlinePlayers())
+            if(pl.getGameMode() == GameMode.SURVIVAL && !API.isSpectator(pl))
+                c++;
+        if(c == 1)
+        {
+            for(Player pl : Bukkit.getOnlinePlayers())
+            {
+                if (pl.getGameMode() == GameMode.SURVIVAL && !API.isSpectator(pl))
+                {
+                    winners.add(pl);
+                    doWin();
+                    return;
+                }
+            }
+        }
+        else if (Bukkit.getOnlinePlayers().size() == 0)
+            clear();
+    }
+
+    @EventHandler (priority = EventPriority.LOW)
+    public void onWeatherChange(WeatherChangeEvent event)
+    {
+        if (event.toWeatherState())
+            event.setCancelled(true);
     }
 
     @EventHandler
     public void onEntityDamageByEntity(EntityDamageByEntityEvent e)
     {
+        if(!(e.getDamager() instanceof Player))
+        {
+            e.setCancelled(true);
+            return;
+        }
+
+        Player damager = (Player)e.getDamager();
+        if(!gamePlaying || API.isSpectator(damager))
+        {
+            e.setCancelled(true);
+            return;
+        }
+
         e.setDamage(0);
-        if(e.getDamager().getType() == EntityType.PLAYER && gamePlaying)
+        if(damager.getGameMode() == GameMode.SURVIVAL)
         {
             Player a = (Player)e.getDamager();
-            if(a.getItemInHand() == null)
+            ItemStack is = a.getInventory().getItemInMainHand();
+            if(is == null)
                 return;
-            if(a.getItemInHand().getType() == Material.BLAZE_ROD)
+            if(is.getType() == Material.BLAZE_ROD)
             {
-                if(e.getEntity().getType() == EntityType.PLAYER)
+                if(e.getEntity() instanceof Player)
                 {
+                    Player entity = (Player) e.getEntity();
+                    if(API.isSpectator(entity))
+                       return;
+                    double power = 2;
                     Player en = (Player)e.getEntity();
                     Location l = en.getLocation().subtract(a.getLocation());
-                    double distance = en.getLocation().distance(a.getLocation());
-                    Vector v = l.toVector().multiply(2/distance);
+                    Vector v = l.toVector().normalize().multiply(power);
                     en.setVelocity(v);
                 }
             }
@@ -245,11 +445,10 @@ public class PlayerEvents implements Listener, QueueListener {
     @EventHandler
     public void onProjectileLaunch(ProjectileLaunchEvent e)
     {
-        if(e.getEntityType() == EntityType.FIREBALL) {
-            e.getEntity().setVelocity(new Vector(0,0,0));
+        if(e.getEntityType() == EntityType.FIREBALL)
             this.fireballs.add(e.getEntity());
-        }
     }
+
     @EventHandler
     public void onProjectileHit(ProjectileHitEvent event)
     {
@@ -259,6 +458,5 @@ public class PlayerEvents implements Listener, QueueListener {
             if(this.fireballs.contains(p))
                 this.fireballs.remove(p);
         }
-
     }
 }
