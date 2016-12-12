@@ -25,6 +25,7 @@ import org.bukkit.event.weather.WeatherChangeEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
 import java.util.*;
@@ -47,6 +48,7 @@ public class PlayerEvents implements Listener, QueueListener
     public List<Player> winners = new ArrayList<>();
 
     public boolean gamePlaying = false;
+    public boolean gameFinished = false;
     public boolean started = false;
 
     public int startTimerId = -1;
@@ -230,10 +232,17 @@ public class PlayerEvents implements Listener, QueueListener
             if (startTimer == 0)
                 title.setText("Go !");
 
-            Bukkit.getOnlinePlayers().forEach(title::sendTitle);
+            for(Player p : Bukkit.getOnlinePlayers())
+            {
+                if (startTimer > 0)
+                    p.playSound(p.getLocation(), Sound.BLOCK_NOTE_PLING, 0.5F, 0.5F);
+                title.sendTitle(p);
+            }
 
             if (startTimer <= 0)
             {
+                for(Player p : Bukkit.getOnlinePlayers())
+                    p.playSound(p.getLocation(), Sound.BLOCK_NOTE_PLING, 0.5F, 1F);
                 startTimer = 0;
                 gamePlaying = true;
                 Bukkit.getScheduler().cancelTask(startTimerId);
@@ -258,7 +267,7 @@ public class PlayerEvents implements Listener, QueueListener
         }
 
         Long t = currentTime - System.currentTimeMillis();
-        int seconds = (int) (t / 1000) % 60 ;
+        int seconds = (int) (t / 1000) % 60;
         int minutes = (int) ((t / (1000*60)) % 60);
         String time = String.format("%02d:%02d", minutes, seconds);
         s.setLine(1, time);
@@ -311,7 +320,7 @@ public class PlayerEvents implements Listener, QueueListener
         Player p = e.getPlayer();
         if(started && p.getGameMode() == GameMode.SURVIVAL && !API.isSpectator(p))
         {
-            if(!gamePlaying)
+            if(!gamePlaying && !gameFinished)
             {
                 boolean teleport = e.getFrom().toVector().getBlockX() != e.getTo().toVector().getBlockX();
                 if (e.getFrom().toVector().getBlockZ() != e.getTo().toVector().getBlockZ() || teleport)
@@ -319,22 +328,32 @@ public class PlayerEvents implements Listener, QueueListener
             }
             else
             {
-                if(p.getLocation().getY() <= main.configData.deathLevel)
+                if(p.getLocation().getBlockY() <= main.configData.deathLevel)
                 {
                     int c = 0;
                     for(Player pl : Bukkit.getOnlinePlayers())
                         if(pl.getGameMode() == GameMode.SURVIVAL && !API.isSpectator(pl))
                             c++;
-                    if(c == 1)
+                    if(c == 2 && !gameFinished)
                     {
-                        winners.add(p);
-                        doWin();
+                        for(Player pl : Bukkit.getOnlinePlayers())
+                        {
+                            if (pl.getGameMode() == GameMode.SURVIVAL && !API.isSpectator(pl))
+                            {
+                                winners.add(pl);
+                                doWin();
+                                break;
+                            }
+                        }
                     }
                     else
                     {
-                        API.setSpectator(p);
-                        p.getInventory().clear();
-                        p.teleport(main.configData.spectatorLoc.getLocation());
+                        if(!winners.contains(p))
+                        {
+                            API.setSpectator(p);
+                            p.getInventory().clear();
+                            p.teleport(main.configData.spectatorLoc.getLocation());
+                        }
                     }
                 }
             }
@@ -343,12 +362,50 @@ public class PlayerEvents implements Listener, QueueListener
 
     public void doWin()
     {
-
+        Bukkit.getScheduler().cancelTask(startTimerId);
+        gamePlaying = false;
+        gameFinished = true;
+        for(Player p : Bukkit.getOnlinePlayers())
+        {
+            p.getInventory().clear();
+            if(winners.contains(p))
+            {
+                Title title = new Title();
+                title.setFadeIn(2);
+                title.setFadeOut(2);
+                title.setText("Vous avez gagné");
+                title.setColor(ChatColor.GREEN);
+                title.setSubtitle(new Title("Félicitations !", ChatColor.GREEN));
+                title.sendTitle(p);
+            }
+            else
+            {
+                API.setSpectator(p);
+                p.teleport(main.configData.spectatorLoc.getLocation());
+                p.sendMessage(ChatColor.BLUE + "--------------------------------------------------");
+                p.sendMessage("");
+                p.sendMessage(ChatColor.WHITE + "Partie terminée.");
+                p.sendMessage("");
+                String out = ChatColor.GREEN + "";
+                for (int i = 0; i < winners.size(); i++)
+                    out += winners.get(i) + (i < winners.size() - 1 ? "," : "");
+                p.sendMessage(ChatColor.WHITE + "Voici les vainqueurs : " + out);
+                p.sendMessage("");
+                p.sendMessage(ChatColor.BLUE + "--------------------------------------------------");
+            }
+        }
+        clear();
     }
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent e)
     {
+        if(gameFinished)
+        {
+            e.getPlayer().kickPlayer("Partie terminée. Vous ne pouvez pas rejoindre");
+            return;
+        }
+
         e.getPlayer().getInventory().clear();
         if(started && gamePlaying)
         {
@@ -358,7 +415,10 @@ public class PlayerEvents implements Listener, QueueListener
             p.teleport(main.configData.spectatorLoc.getLocation());
         }
         else
+        {
             e.getPlayer().setGameMode(GameMode.SURVIVAL);
+            e.getPlayer().removePotionEffect(PotionEffectType.INVISIBILITY);
+        }
     }
 
     @EventHandler
@@ -370,11 +430,11 @@ public class PlayerEvents implements Listener, QueueListener
         for(Player pl : Bukkit.getOnlinePlayers())
             if(pl.getGameMode() == GameMode.SURVIVAL && !API.isSpectator(pl))
                 c++;
-        if(c == 1)
+        if(c == 2)
         {
             for(Player pl : Bukkit.getOnlinePlayers())
             {
-                if (pl.getGameMode() == GameMode.SURVIVAL && !API.isSpectator(pl))
+                if (pl.getGameMode() == GameMode.SURVIVAL && !API.isSpectator(pl) && pl != e.getPlayer())
                 {
                     winners.add(pl);
                     doWin();
@@ -426,7 +486,8 @@ public class PlayerEvents implements Listener, QueueListener
                     double power = 2;
                     Player en = (Player)e.getEntity();
                     Location l = en.getLocation().subtract(a.getLocation());
-                    Vector v = l.toVector().normalize().multiply(power);
+                    Vector v = l.toVector().normalize().setY(0).multiply(power);
+                    v.setY(0.8);
                     en.setVelocity(v);
                 }
             }

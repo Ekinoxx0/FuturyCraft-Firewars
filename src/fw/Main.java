@@ -40,8 +40,7 @@ public class Main extends JavaPlugin
         getServer().getLogger().info("Demarrage du plugin !");
         config.loadConfig();
         configData = config.get(ConfigData.class);
-        if(!configData.minimumConfigIsSet())
-            api.useQueueManager(false);
+        api.useQueueManager(configData.minimumConfigIsSet());
         this.getServer().getPluginManager().registerEvents(playerEvents = new PlayerEvents(this), this);
         commandsManager.registerCommands();
         for(Player p : getServer().getOnlinePlayers())
